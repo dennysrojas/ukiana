@@ -1,0 +1,6 @@
+{
+  "name": "Ukiana - Gestión Clínica Psicológica",
+  "description": "Plataforma integral de gestión clínica psicológica con directorio de pacientes, fichas clínicas, informes PDF personalizados, documentación legal RGPD, plan de tratamiento estratégico, analíticas clínicas y gestión de agenda.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
