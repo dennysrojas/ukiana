@@ -27,7 +27,10 @@ ALTER TABLE public.clinical_notes
   ADD COLUMN IF NOT EXISTS recommended_frequency TEXT,
   ADD COLUMN IF NOT EXISTS therapist_signature TEXT;
 
--- 3. REMOVER RESTRICCIONES RÍGIDAS (CHECK) QUE PUEDAN BLOQUEAR VALORES VÁLIDOS
+-- 3. REMOVER RESTRICCIONES RÍGIDAS (CHECK / NOT NULL) QUE PUEDAN BLOQUEAR VALORES VÁLIDOS
+ALTER TABLE public.patients ALTER COLUMN email DROP NOT NULL;
+ALTER TABLE public.patients ALTER COLUMN phone DROP NOT NULL;
+ALTER TABLE public.patients ALTER COLUMN emergency_contact DROP NOT NULL;
 ALTER TABLE public.clinical_notes DROP CONSTRAINT IF EXISTS clinical_notes_type_check;
 ALTER TABLE public.clinical_notes DROP CONSTRAINT IF EXISTS clinical_notes_emotional_state_check;
 ALTER TABLE public.psycho_resources DROP CONSTRAINT IF EXISTS psycho_resources_category_check;
