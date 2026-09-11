@@ -1,13 +1,13 @@
 -- Ukiana - Gestión Clínica Psicológica
--- Schema SQL completo para PostgreSQL en Supabase
+-- Schema SQL completo y alineado con el frontend y servicios para Supabase PostgreSQL
 
 -- Habilitar extensión UUID
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 1. Tabla de Terapeutas / Usuarios Profesionales
 CREATE TABLE IF NOT EXISTS public.therapists (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
+  id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   full_name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
   professional_license TEXT,
@@ -19,19 +19,25 @@ CREATE TABLE IF NOT EXISTS public.therapists (
 
 -- 2. Tabla de Pacientes
 CREATE TABLE IF NOT EXISTS public.patients (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  therapist_id UUID REFERENCES public.therapists(id) ON DELETE CASCADE,
+  id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+  therapist_id TEXT,
   full_name TEXT NOT NULL,
+  birth_date DATE,
+  id_number TEXT,
   age INT NOT NULL,
   gender TEXT NOT NULL,
   avatar TEXT,
   email TEXT NOT NULL,
   phone TEXT NOT NULL,
+  has_autonomy_limitation BOOLEAN DEFAULT FALSE,
+  family_info JSONB DEFAULT '{}'::jsonb,
+  perinatal_history JSONB DEFAULT '{}'::jsonb,
   emergency_contact JSONB NOT NULL DEFAULT '{}'::jsonb,
   occupation TEXT,
-  status TEXT NOT NULL CHECK (status IN ('Activo', 'En Pausa', 'Alta Clínica', 'En Crisis')) DEFAULT 'Activo',
-  risk_level TEXT NOT NULL CHECK (risk_level IN ('Bajo', 'Moderado', 'Elevado', 'Crítico')) DEFAULT 'Bajo',
+  status TEXT NOT NULL DEFAULT 'Activo',
+  risk_level TEXT NOT NULL DEFAULT 'Bajo',
   start_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  therapist TEXT DEFAULT 'Médico Responsable',
   primary_diagnosis TEXT,
   icd10_code TEXT,
   dsm5_code TEXT,
@@ -47,19 +53,31 @@ CREATE TABLE IF NOT EXISTS public.patients (
 
 -- 3. Tabla de Notas Clínicas SOAP
 CREATE TABLE IF NOT EXISTS public.clinical_notes (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  patient_id UUID NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
+  id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+  patient_id TEXT NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
   session_number INT NOT NULL,
   date DATE NOT NULL DEFAULT CURRENT_DATE,
+  start_time TEXT,
+  end_time TEXT,
   duration_minutes INT DEFAULT 50,
-  type TEXT NOT NULL CHECK (type IN ('Sesión Regular', 'Evaluación Inicial', 'Intervención Crisis', 'Cierre/Seguimiento')),
+  modality TEXT DEFAULT 'Presencial',
+  type TEXT NOT NULL DEFAULT 'Sesión Regular',
+  emotional_state_categories TEXT[] DEFAULT '{}',
+  affect_notes TEXT,
+  emotional_state TEXT DEFAULT 'Estable',
   subjective TEXT NOT NULL,
   objective TEXT NOT NULL,
   assessment TEXT NOT NULL,
   plan TEXT NOT NULL,
-  emotional_state TEXT CHECK (emotional_state IN ('Estable', 'Ansioso', 'Depresivo', 'Eufórico', 'Lábil')),
-  bdi_score INT,
-  bai_score INT,
+  applies_techniques BOOLEAN DEFAULT FALSE,
+  techniques_list JSONB DEFAULT '[]'::jsonb,
+  diagnoses_list JSONB DEFAULT '[]'::jsonb,
+  next_session_date TEXT,
+  next_session_time TEXT,
+  recommended_frequency TEXT,
+  therapist_signature TEXT,
+  bdi_score TEXT,
+  bai_score TEXT,
   suicide_risk BOOLEAN DEFAULT FALSE,
   private_notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -68,22 +86,22 @@ CREATE TABLE IF NOT EXISTS public.clinical_notes (
 
 -- 4. Tabla de Línea del Tiempo Terapéutica
 CREATE TABLE IF NOT EXISTS public.timeline_items (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  patient_id UUID NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
+  id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+  patient_id TEXT NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
   date DATE NOT NULL DEFAULT CURRENT_DATE,
   title TEXT NOT NULL,
-  category TEXT NOT NULL CHECK (category IN ('Sesiones', 'Crisis', 'Medicación', 'Evaluaciones', 'Legal')),
+  category TEXT NOT NULL,
   description TEXT NOT NULL,
   author TEXT NOT NULL,
   tags TEXT[] DEFAULT '{}',
-  severity TEXT CHECK (severity IN ('Baja', 'Media', 'Alta')),
+  severity TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 5. Tabla de Planes de Tratamiento
 CREATE TABLE IF NOT EXISTS public.treatment_plans (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  patient_id UUID UNIQUE NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
+  id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+  patient_id TEXT UNIQUE NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
   primary_diagnosis TEXT NOT NULL,
   icd_code TEXT,
   dsm_code TEXT,
@@ -96,11 +114,11 @@ CREATE TABLE IF NOT EXISTS public.treatment_plans (
 
 -- 6. Tabla de Documentos Legales y Consentimientos RGPD
 CREATE TABLE IF NOT EXISTS public.legal_documents (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  patient_id UUID NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
+  id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+  patient_id TEXT NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
   patient_name TEXT NOT NULL,
-  document_type TEXT NOT NULL CHECK (document_type IN ('Consentimiento Informado', 'Protección de Datos RGPD', 'Contrato de Terapia', 'Acuerdo de Honorarios')),
-  status TEXT NOT NULL CHECK (status IN ('Firmado', 'Pendiente', 'Enviado', 'Sin Archivo')) DEFAULT 'Pendiente',
+  document_type TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'Pendiente',
   signed_date TIMESTAMPTZ,
   sent_date TIMESTAMPTZ,
   file_url TEXT,
@@ -110,10 +128,10 @@ CREATE TABLE IF NOT EXISTS public.legal_documents (
 
 -- 7. Tabla de Recursos Psicoeducativos
 CREATE TABLE IF NOT EXISTS public.psycho_resources (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
   title TEXT NOT NULL,
-  category TEXT NOT NULL CHECK (category IN ('Respiración', 'Registro Cognitivo', 'Lecturas', 'Mindfulness', 'Técnicas Conductuales')),
-  type TEXT NOT NULL CHECK (type IN ('PDF', 'Audio', 'Hoja de Trabajo', 'Guía')),
+  category TEXT NOT NULL,
+  type TEXT NOT NULL,
   estimated_minutes INT DEFAULT 10,
   description TEXT NOT NULL,
   thumbnail_url TEXT,
@@ -124,11 +142,11 @@ CREATE TABLE IF NOT EXISTS public.psycho_resources (
 
 -- 8. Tabla de Alertas Clínicas
 CREATE TABLE IF NOT EXISTS public.clinic_alerts (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  patient_id UUID NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
+  id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+  patient_id TEXT NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
   patient_name TEXT NOT NULL,
   patient_avatar TEXT,
-  level TEXT NOT NULL CHECK (level IN ('Crítica', 'Legal', 'Inactividad', 'Recordatorio')),
+  level TEXT NOT NULL,
   title TEXT NOT NULL,
   message TEXT NOT NULL,
   action_required TEXT NOT NULL,
@@ -138,15 +156,15 @@ CREATE TABLE IF NOT EXISTS public.clinic_alerts (
 
 -- 9. Tabla de Agenda de Citas
 CREATE TABLE IF NOT EXISTS public.appointments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  patient_id UUID NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
+  id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+  patient_id TEXT NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
   patient_name TEXT NOT NULL,
   patient_avatar TEXT,
   date DATE NOT NULL,
-  start_time TIME NOT NULL,
-  end_time TIME NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('Presencial', 'Online (Videollamada)')),
-  status TEXT NOT NULL CHECK (status IN ('Confirmada', 'Pendiente', 'Completada', 'Cancelada')) DEFAULT 'Confirmada',
+  start_time TEXT NOT NULL,
+  end_time TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'Presencial',
+  status TEXT NOT NULL DEFAULT 'Confirmada',
   room TEXT,
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -154,9 +172,9 @@ CREATE TABLE IF NOT EXISTS public.appointments (
 
 -- 10. Tabla de Entrevistas Iniciales y Evaluación Clínica Semiestructurada
 CREATE TABLE IF NOT EXISTS public.initial_interviews (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  patient_id UUID NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
-  therapist_id UUID REFERENCES public.therapists(id) ON DELETE SET NULL,
+  id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+  patient_id TEXT NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
+  therapist_id TEXT,
   therapist_name TEXT,
   evaluation_date DATE NOT NULL DEFAULT CURRENT_DATE,
 
@@ -193,7 +211,7 @@ CREATE TABLE IF NOT EXISTS public.initial_interviews (
   cog_pensamiento_predominante TEXT,
   cog_foco_cognitivo TEXT[] DEFAULT '{}',
   cog_atencion TEXT NOT NULL DEFAULT 'Conservada / Buena concentración',
-  riesgo_vital_nivel TEXT NOT NULL CHECK (riesgo_vital_nivel IN ('sin_riesgo', 'ideacion_pasiva', 'ideacion_activa_plan', 'autolesiones')) DEFAULT 'sin_riesgo',
+  riesgo_vital_nivel TEXT NOT NULL DEFAULT 'sin_riesgo',
   riesgo_detalle_evaluacion TEXT,
 
   -- Red Social y Cotidianeidad
@@ -216,7 +234,10 @@ CREATE TABLE IF NOT EXISTS public.initial_interviews (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Habilitar Row Level Security (RLS) en todas las tablas
+-- ========================================================
+-- POLÍTICAS DE SEGURIDAD ROW LEVEL SECURITY (RLS)
+-- Habilitar RLS en todas las tablas
+-- ========================================================
 ALTER TABLE public.therapists ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.patients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.clinical_notes ENABLE ROW LEVEL SECURITY;
@@ -228,15 +249,14 @@ ALTER TABLE public.clinic_alerts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.initial_interviews ENABLE ROW LEVEL SECURITY;
 
--- Politicas RLS (Permitir lectura y escritura a usuarios autenticados)
-CREATE POLICY "Permitir todo a usuarios autenticados en therapists" ON public.therapists FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Permitir todo a usuarios autenticados en patients" ON public.patients FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Permitir todo a usuarios autenticados en clinical_notes" ON public.clinical_notes FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Permitir todo a usuarios autenticados en timeline_items" ON public.timeline_items FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Permitir todo a usuarios autenticados en treatment_plans" ON public.treatment_plans FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Permitir todo a usuarios autenticados en legal_documents" ON public.legal_documents FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Permitir todo a usuarios autenticados en psycho_resources" ON public.psycho_resources FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Permitir todo a usuarios autenticados en clinic_alerts" ON public.clinic_alerts FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Permitir todo a usuarios autenticados en appointments" ON public.appointments FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Permitir todo a usuarios autenticados en initial_interviews" ON public.initial_interviews FOR ALL USING (auth.role() = 'authenticated');
-
+-- Políticas de acceso completo (Permite operar con anon y con usuarios autenticados para MVP y Demo)
+CREATE POLICY "Acceso total a therapists" ON public.therapists FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Acceso total a patients" ON public.patients FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Acceso total a clinical_notes" ON public.clinical_notes FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Acceso total a timeline_items" ON public.timeline_items FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Acceso total a treatment_plans" ON public.treatment_plans FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Acceso total a legal_documents" ON public.legal_documents FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Acceso total a psycho_resources" ON public.psycho_resources FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Acceso total a clinic_alerts" ON public.clinic_alerts FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Acceso total a appointments" ON public.appointments FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Acceso total a initial_interviews" ON public.initial_interviews FOR ALL USING (true) WITH CHECK (true);
