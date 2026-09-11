@@ -100,7 +100,9 @@ export const createPatient = async (patient: Patient): Promise<Patient> => {
       antecedents: patient.antecedents
     }]).select().single();
 
-    if (!error && data) {
+    if (error) {
+      console.error('❌ Error guardando paciente en Supabase:', error);
+    } else if (data) {
       return {
         ...patient,
         id: data.id

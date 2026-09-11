@@ -82,7 +82,9 @@ export const createClinicalNote = async (note: ClinicalNote): Promise<ClinicalNo
       private_notes: note.privateNotes
     }]).select().single();
 
-    if (!error && data) {
+    if (error) {
+      console.error('❌ Error guardando nota clínica en Supabase:', error);
+    } else if (data) {
       return { ...note, id: data.id };
     }
   }
